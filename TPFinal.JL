@@ -1,60 +1,61 @@
 using FASTX
+using BioSequences
+using BioAlignments
 using Plots
+using BioSequences: LongAA
 
-# -------------------------------
-# Función para cargar una secuencia desde un archivo FASTA
-function cargar_secuencia_fasta(path::String)::String
+const aa_validos = Set(['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'])
+
+function limpiar_secuencia(seq::AbstractString)
+    return join([c for c in uppercase(seq) if c in aa_validos])
+end
+
+function cargar_fasta_completo(path::String)
+    secuencias = Vector{Tuple{String, LongAA}}()
     open(FASTA.Reader, path) do reader
         for record in reader
-            return String(sequence(record))
+            header = FASTX.description(record)
+            raw_seq = String(FASTX.sequence(record))
+            seq_limpia = limpiar_secuencia(raw_seq)
+            push!(secuencias, (header, LongAA(seq_limpia)))
         end
     end
+    return secuencias
 end
 
-# -------------------------------
-# Alineamiento global - Needleman-Wunsch
-function needleman_wunsch(seq1, seq2; match=1, mismatch=-1, gap=-1)
-    m, n = length(seq1), length(seq2)
-    score = fill(0, m+1, n+1)
-
-    for i in 1:m+1
-        score[i, 1] = (i-1) * gap
+function buscar_secuencia_por_texto(secuencias::Vector{Tuple{String, LongAA}}, texto::String)
+    texto_lower = lowercase(texto)
+    for (header, seq) in secuencias
+        if occursin(texto_lower, lowercase(header))
+            return (header, seq)
+        end
     end
-    for j in 1:n+1
-        score[1, j] = (j-1) * gap
-    end
-
-    for i in 2:m+1, j in 2:n+1
-        diag = score[i-1, j-1] + (seq1[i-1] == seq2[j-1] ? match : mismatch)
-        up = score[i-1, j] + gap
-        left = score[i, j-1] + gap
-        score[i, j] = maximum([diag, up, left])
-    end
-
-    return score[m+1, n+1], score
+    error("No se encontró secuencia que contenga '$texto'")
 end
 
-# -------------------------------
-# Alineamiento local - Smith-Waterman
-function smith_waterman(seq1, seq2; match=2, mismatch=-1, gap=-2)
-    m, n = length(seq1), length(seq2)
-    score = fill(0, m+1, n+1)
-    max_score = 0
+function alinear_y_mostrar(seq1::LongAA, seq2::LongAA, nombre::String)
+    modelo = AffineGapScoreModel(match=1, mismatch=-1, gap_open=-2, gap_extend=-1)
 
-    for i in 2:m+1, j in 2:n+1
-        diag = score[i-1, j-1] + (seq1[i-1] == seq2[j-1] ? match : mismatch)
-        up = score[i-1, j] + gap
-        left = score[i, j-1] + gap
-        score[i, j] = max(0, diag, up, left)
-        max_score = max(max_score, score[i, j])
-    end
+    aln_global = pairalign(GlobalAlignment(), seq1, seq2, modelo)
+    println("\n===== Alineamiento global (Needleman-Wunsch) - $nombre =====")
+    println(aln_global)
 
-    return max_score, score
+    aln_local = pairalign(LocalAlignment(), seq1, seq2, modelo)
+    println("\n===== Alineamiento local (Smith-Waterman) - $nombre =====")
+    println(aln_local)
 end
 
-# -------------------------------
-# Función para generar el dotplot entre dos secuencias
-function dotplot(seq1::String, seq2::String; window::Int=4)
+# Función para extraer parte del header desde '>' hasta el primer '|'
+function extraer_nombre(header::String)
+    idx = findfirst('|', header)
+    if idx === nothing
+        return header
+    else
+        return header[1:idx-1]
+    end
+end
+
+function dotplot(seq1::String, seq2::String, name1::String, name2::String; window::Int=4)
     dict1 = Dict{String, Vector{Int}}()
     dict2 = Dict{String, Vector{Int}}()
 
@@ -68,9 +69,7 @@ function dotplot(seq1::String, seq2::String; window::Int=4)
         push!(get!(dict2, subseq, Int[]), j)
     end
 
-    # Encuentra coincidencias exactas de subsecuencias
     matches = intersect(keys(dict1), keys(dict2))
-
     x = Int[]
     y = Int[]
 
@@ -81,56 +80,48 @@ function dotplot(seq1::String, seq2::String; window::Int=4)
         end
     end
 
-    # Graficar los puntos
     scatter(x, y,
-        xlabel = "Posición en Secuencia 1",
-        ylabel = "Posición en Secuencia 2",
+        xlabel = "Posición en $name1",
+        ylabel = "Posición en $name2",
         title = "Dotplot (window = $window)",
         markersize = 2,
         legend = false,
         grid = true,
         yflip = true)
+
+        display(current())
 end
 
-# -------------------------------
-# Ejecución
-#caso 1 (ventana de 1 a 2)
-seq1 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_3I40.fasta") #Insulina humana
-seq2 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_2ZP6.fasta") #Insulina bovina
+# --- Comparaciones ---
+comparaciones = [
+    (file1 = "./Fasta/rcsb_pdb_3I40.fasta", texto1 = "Insulin A chain",
+     file2 = "./Fasta/rcsb_pdb_2ZP6.fasta", texto2 = "Insulin A chain",
+     nombre = "Insulina humana (Cadena A) vs bovina (Cadena A)"),
 
-puntaje_global, _ = needleman_wunsch(seq1, seq2)
-println("\nNeedleman-Wunsch (Global) - Insulina humana VS Insulina bovina: Puntaje = ", puntaje_global)
+    (file1 = "./Fasta/rcsb_pdb_3I40.fasta", texto1 = "Insulin B chain",
+     file2 = "./Fasta/rcsb_pdb_2ZP6.fasta", texto2 = "Insulin B chain",
+     nombre = "Insulina humana (Cadena B) vs bovina (Cadena B)"),
 
-puntaje_local, _ = smith_waterman(seq1, seq2)
-println("Smith-Waterman (Local) - Insulina humana VS Insulina bovina: Puntaje = ", puntaje_local)
+    (file1 = "./Fasta/rcsb_pdb_1A3N.fasta", texto1 = "HEMOGLOBIN (ALPHA CHAIN)",
+     file2 = "./Fasta/rcsb_pdb_2MBW.fasta", texto2 = "MYOGLOBIN",
+     nombre = "Hemoglobina alfa humana vs Mioglobina cachalote"),
 
-window = 1
-dotplot(seq1, seq2, window=window)
+    (file1 = "./Fasta/rcsb_pdb_3EXJ.fasta", texto1 = "p53 core domain",
+     file2 = "./Fasta/rcsb_pdb_2IOI.fasta", texto2 = "Cellular tumor antigen p53",
+     nombre = "p53 humano vs p53 ratón")
+]
 
-#=caso 2 (ventana de 1 a 3)
-seq1 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_1A3N.fasta") #Hemoglobina humana
-seq2 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_2MBW.fasta") #Mioglobina cachalote
+for comp in comparaciones
+    println("Procesando comparación: ", comp.nombre)
+    secs1 = cargar_fasta_completo(comp.file1)
+    secs2 = cargar_fasta_completo(comp.file2)
 
-puntaje_global, _ = needleman_wunsch(seq1, seq2)
-println("\nNeedleman-Wunsch (Global) -Hemoglobina humana vs Mioglobina cachalote: Puntaje = ", puntaje_global)
+    header1, seq1 = buscar_secuencia_por_texto(secs1, comp.texto1)
+    header2, seq2 = buscar_secuencia_por_texto(secs2, comp.texto2)
 
-puntaje_local, _ = smith_waterman(seq1, seq2)
-println("Smith-Waterman (Local) -Hemoglobina humana vs Mioglobina cachalote: Puntaje = ", puntaje_local)
+    
 
-window = 3
-dotplot(seq1, seq2, window=window)
-=#
+    alinear_y_mostrar(seq1, seq2, comp.nombre)
 
-#=caso 3 (ventana de 1 a 2)
-seq1 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_3EXJ.fasta") #p53 humano unido al ADN 
-seq2 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_2IOI.fasta") #p53 del ratón
-
-puntaje_global, _ = needleman_wunsch(seq1, seq2)
-println("\nNeedleman-Wunsch (Global) -p53 humano unido al ADN vs p53 del ratón: Puntaje = ", puntaje_global)
-
-puntaje_local, _ = smith_waterman(seq1, seq2)
-println("Smith-Waterman (Local) -p53 humano unido al ADN vs p53 del ratón: Puntaje = ", puntaje_local)
-
-window = 2
-dotplot(seq1, seq2, window=window)
-=#
+    dotplot(String(seq1), String(seq2), extraer_nombre(header1), extraer_nombre(header2), window=3)
+end
