@@ -88,19 +88,49 @@ function dotplot(seq1::String, seq2::String; window::Int=4)
         title = "Dotplot (window = $window)",
         markersize = 2,
         legend = false,
-        grid = true)
+        grid = true,
+        yflip = true)
 end
 
 # -------------------------------
 # Ejecución
-seq1 = cargar_secuencia_fasta("./Fasta/1VXA.fasta")
-seq2 = cargar_secuencia_fasta("./Fasta/1MBN.fasta")
+#caso 1 (ventana de 1 a 2)
+seq1 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_3I40.fasta") #Insulina humana
+seq2 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_2ZP6.fasta") #Insulina bovina
 
 puntaje_global, _ = needleman_wunsch(seq1, seq2)
-println("\nNeedleman-Wunsch (Global): Puntaje = ", puntaje_global)
+println("\nNeedleman-Wunsch (Global) - Insulina humana VS Insulina bovina: Puntaje = ", puntaje_global)
 
 puntaje_local, _ = smith_waterman(seq1, seq2)
-println("Smith-Waterman (Local): Puntaje = ", puntaje_local)
+println("Smith-Waterman (Local) - Insulina humana VS Insulina bovina: Puntaje = ", puntaje_local)
+
+window = 1
+dotplot(seq1, seq2, window=window)
+
+#=caso 2 (ventana de 1 a 3)
+seq1 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_1A3N.fasta") #Hemoglobina humana
+seq2 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_2MBW.fasta") #Mioglobina cachalote
+
+puntaje_global, _ = needleman_wunsch(seq1, seq2)
+println("\nNeedleman-Wunsch (Global) -Hemoglobina humana vs Mioglobina cachalote: Puntaje = ", puntaje_global)
+
+puntaje_local, _ = smith_waterman(seq1, seq2)
+println("Smith-Waterman (Local) -Hemoglobina humana vs Mioglobina cachalote: Puntaje = ", puntaje_local)
 
 window = 3
 dotplot(seq1, seq2, window=window)
+=#
+
+#=caso 3 (ventana de 1 a 2)
+seq1 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_3EXJ.fasta") #p53 humano unido al ADN 
+seq2 = cargar_secuencia_fasta("./Fasta/rcsb_pdb_2IOI.fasta") #p53 del ratón
+
+puntaje_global, _ = needleman_wunsch(seq1, seq2)
+println("\nNeedleman-Wunsch (Global) -p53 humano unido al ADN vs p53 del ratón: Puntaje = ", puntaje_global)
+
+puntaje_local, _ = smith_waterman(seq1, seq2)
+println("Smith-Waterman (Local) -p53 humano unido al ADN vs p53 del ratón: Puntaje = ", puntaje_local)
+
+window = 2
+dotplot(seq1, seq2, window=window)
+=#
