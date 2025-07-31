@@ -53,7 +53,6 @@ function smith_waterman(seq1, seq2; match=2, mismatch=-1, gap=-2)
 end
 
 # -------------------------------
-# Dotplot simple por subsecuencias comunes
 # Función para generar el dotplot entre dos secuencias
 function dotplot(seq1::String, seq2::String; window::Int=4)
     dict1 = Dict{String, Vector{Int}}()
@@ -93,7 +92,7 @@ function dotplot(seq1::String, seq2::String; window::Int=4)
 end
 
 # -------------------------------
-# MAIN - Ejecución
+# Ejecución
 seq1 = cargar_secuencia_fasta("./Fasta/1VXA.fasta")
 seq2 = cargar_secuencia_fasta("./Fasta/1MBN.fasta")
 
@@ -103,6 +102,5 @@ println("\nNeedleman-Wunsch (Global): Puntaje = ", puntaje_global)
 puntaje_local, _ = smith_waterman(seq1, seq2)
 println("Smith-Waterman (Local): Puntaje = ", puntaje_local)
 
-# Generar dotplot con ventana de 4 (o cambiar a gusto)
 window = 3
 dotplot(seq1, seq2, window=window)
